@@ -1436,451 +1436,205 @@ tex_lines <- c(
 )
 writeLines(tex_lines, file.path(dir_stage4, "shortlist_top20.tex"))
 
-# ============================================================
-# STAGE 5: Hopf-centered simulation sweep + cycle diagnostics
-# ============================================================
-cat("\n====================\nStage 5: simulation sweep\n====================\n")
-
-# ---- SIM SETTINGS (edit here) ----
-sim_t_end <- 800
-sim_dt    <- 0.05
-burn_frac <- 0.50   # fraction of time to drop as burn-in
-rF_eps    <- 0.005  # simulate around Hopf boundary: root +/- eps
-n_plan_candidates <- 30  # how many candidates (from Stage 4) to plan sims for
-
-# ---- USER HOOK: define your simulation function here ----
-# Must return a data.frame/tibble with columns: time, e, omega, d
-# And it must accept (row, rF_sim, t_end, dt).
-#
-# Example skeleton:
-# simulate_model <- function(row, rF_sim, t_end, dt) {
-#   # ... use deSolve::ode or your own integrator ...
-#   # return tibble(time=..., e=..., omega=..., d=...)
-# }
-#
-# For now we stop if not defined.
-if (!exists("simulate_model")) {
-  cat("\nERROR: You must define simulate_model(row, rF_sim, t_end, dt) before Stage 5 can run.\n")
-  cat("Create it above this block (or source it), then re-run.\n\n")
-} else {
-  
-  # Candidate pool: use relaxed gated (omega cap) and prioritize hopf existence in score
-  cand_pool <- df_gated_relaxed %>%
-    arrange(score) %>%
-    slice_head(n = n_plan_candidates) %>%
-    mutate(pool_rank = row_number())
-  
-  # Build simulation plan:
-  # - If hopf exists: rF = root-eps, root, root+eps
-  # - Else: rF = baseline rF (just to see behavior)
-  plan <- cand_pool %>%
-    transmute(
-      pool_rank,
-      try_id, cand_id,
-      psi, kappa_max, sigma, g_n, i, delta,
-      phi2,
-      omega_star, d_star, lambda_star,
-      rF_base = rF,
-      has_hopf, rF_root_med
-    ) %>%
-    mutate(
-      rF_root_med = ifelse(has_hopf == TRUE, rF_root_med, NA_real_)
-    ) %>%
-    group_by(pool_rank, try_id, cand_id) %>%
-    group_modify(~{
-      x <- .x[1,]
-      if (isTRUE(x$has_hopf) && is.finite(x$rF_root_med)) {
-        bind_rows(
-          mutate(x, plan_case="root_minus", rF_sim = x$rF_root_med - rF_eps),
-          mutate(x, plan_case="root",       rF_sim = x$rF_root_med),
-          mutate(x, plan_case="root_plus",  rF_sim = x$rF_root_med + rF_eps)
-        )
-      } else {
-        mutate(x, plan_case="baseline", rF_sim = x$rF_base)
-      }
-    }) %>%
-    ungroup() %>%
-    mutate(sim_id = row_number())
-  
-  write_csv(plan, file.path(dir_stage5, "stage5_sim_plan.csv"))
-  cat("Stage 5 plan rows =", nrow(plan), "\n")
-  
-  # Run sims + diagnostics
-  sim_metrics <- purrr::map_dfr(seq_len(nrow(plan)), function(j) {
-    
-    rowj <- plan[j, ]
-    out <- tryCatch(
-      simulate_model(row = rowj, rF_sim = rowj$rF_sim, t_end = sim_t_end, dt = sim_dt),
-      error = function(e) NULL
-    )
-    
-    if (is.null(out)) {
-      return(tibble(
-        sim_id = rowj$sim_id,
-        try_id = rowj$try_id, cand_id = rowj$cand_id,
-        plan_case = rowj$plan_case,
-        rF_sim = rowj$rF_sim,
-        ok = FALSE,
-        reason = "simulate_model_error",
-        amp_e = NA_real_, amp_omega = NA_real_, amp_d = NA_real_,
-        peaks_omega = NA_integer_, peaks_e = NA_integer_,
-        mean_omega = NA_real_
-      ))
-    }
-    
-    out <- as_tibble(out)
-    if (!all(c("time","e","omega","d") %in% names(out))) {
-      return(tibble(
-        sim_id = rowj$sim_id,
-        try_id = rowj$try_id, cand_id = rowj$cand_id,
-        plan_case = rowj$plan_case,
-        rF_sim = rowj$rF_sim,
-        ok = FALSE,
-        reason = "missing_required_cols_time_e_omega_d",
-        amp_e = NA_real_, amp_omega = NA_real_, amp_d = NA_real_,
-        peaks_omega = NA_integer_, peaks_e = NA_integer_,
-        mean_omega = NA_real_
-      ))
-    }
-    
-    # burn-in drop
-    t_cut <- min(out$time, na.rm = TRUE) + burn_frac * (max(out$time, na.rm = TRUE) - min(out$time, na.rm = TRUE))
-    out2 <- out %>% filter(time >= t_cut)
-    
-    tibble(
-      sim_id = rowj$sim_id,
-      try_id = rowj$try_id, cand_id = rowj$cand_id,
-      plan_case = rowj$plan_case,
-      rF_sim = rowj$rF_sim,
-      ok = TRUE,
-      reason = "ok",
-      amp_e     = amp(out2$e),
-      amp_omega = amp(out2$omega),
-      amp_d     = amp(out2$d),
-      peaks_omega = count_peaks(out2$omega),
-      peaks_e     = count_peaks(out2$e),
-      mean_omega  = mean(out2$omega, na.rm = TRUE)
-    )
-  })
-  
-  write_csv(sim_metrics, file.path(dir_stage5, "stage5_sim_metrics.csv"))
-  
-  # Cycle shortlist criteria (edit thresholds here)
-  # - want some oscillation: omega amplitude not tiny + several peaks
-  omega_amp_min <- 0.01
-  peaks_min     <- 3
-  omega_mean_hi <- 0.70  # keep mean omega from going insane
-  
-  sim_short <- sim_metrics %>%
-    filter(ok == TRUE) %>%
-    filter(is.finite(amp_omega), is.finite(peaks_omega), is.finite(mean_omega)) %>%
-    mutate(
-      cycle_like = (amp_omega >= omega_amp_min) & (peaks_omega >= peaks_min) & (mean_omega <= omega_mean_hi)
-    ) %>%
-    arrange(desc(cycle_like), desc(amp_omega), desc(peaks_omega))
-  
-  write_csv(sim_short, file.path(dir_stage5, "stage5_cycle_shortlist.csv"))
-  
-  # Plots
-  pM1 <- ggplot(sim_short, aes(x = amp_omega)) +
-    geom_histogram(bins = 40, alpha = 0.75) +
-    labs(title = "Stage 5: omega amplitude distribution (post burn-in)", x = "amp(omega)", y = "count") +
-    theme_minimal()
-  ggsave(file.path(dir_stage5, "omega_amplitude_hist.png"), pM1, width = 10, height = 5, dpi = 160)
-  
-  pM2 <- ggplot(sim_short, aes(x = peaks_omega, y = amp_omega)) +
-    geom_point(alpha = 0.75) +
-    labs(title = "Stage 5: cycle strength (peaks vs amplitude)", x = "peaks(omega)", y = "amp(omega)") +
-    theme_minimal()
-  ggsave(file.path(dir_stage5, "peaks_vs_amp_omega.png"), pM2, width = 10, height = 6, dpi = 160)
-  
-  pM3 <- ggplot(sim_short, aes(x = rF_sim, y = amp_omega)) +
-    geom_point(alpha = 0.75) +
-    facet_wrap(~ plan_case) +
-    labs(title = "Stage 5: amp(omega) by rF_sim (cases)", x = "rF_sim", y = "amp(omega)") +
-    theme_minimal()
-  ggsave(file.path(dir_stage5, "amp_by_rF_case.png"), pM3, width = 12, height = 6, dpi = 160)
-  
-  # LaTeX table: top 15 cycle-like runs
-  # Requires: \usepackage{booktabs} and if using [H], \usepackage{float}
-  top_tex <- sim_short %>%
-    filter(cycle_like == TRUE) %>%
-    slice_head(n = 15) %>%
-    select(sim_id, try_id, cand_id, plan_case, rF_sim, amp_omega, peaks_omega, mean_omega) %>%
-    mutate(across(where(is.numeric), ~ round(.x, 3)))
-  
-  cols2  <- names(top_tex)
-  align2 <- paste(rep("l", length(cols2)), collapse = "")
-  header2 <- paste(cols2, collapse = " & ")
-  rows2 <- apply(top_tex, 1, function(r) paste(r, collapse = " & "))
-  rows2 <- paste0(rows2, " \\\\")
-  
-  tex2 <- c(
-    "\\begin{table}[H]",
-    "\\centering",
-    "\\caption{Stage 5 cycle-like simulations (top 15).}",
-    "\\label{tab:stage5_cycle_shortlist}",
-    paste0("\\begin{tabular}{", align2, "}"),
-    "\\toprule",
-    paste0(header2, " \\\\"),
-    "\\midrule",
-    rows2,
-    "\\bottomrule",
-    "\\end{tabular}",
-    "\\end{table}"
-  )
-  writeLines(tex2, file.path(dir_stage5, "table_stage5_cycle_shortlist.tex"))
-  
-  # Manifest (stage4+stage5)
-  manifest45 <- tibble(
-    path = list.files(base_dir, recursive = TRUE, full.names = TRUE)
-  ) %>%
-    mutate(bytes = file.size(path), ext = tools::file_ext(path)) %>%
-    arrange(path)
-  
-  write_csv(manifest45, file.path(base_dir, "manifest_outputs_stage4_5.csv"))
-  
-  cat("\nStage 5 done.\n")
-  cat("  plan:    ", file.path(dir_stage5, "stage5_sim_plan.csv"), "\n", sep="")
-  cat("  metrics: ", file.path(dir_stage5, "stage5_sim_metrics.csv"), "\n", sep="")
-  cat("  shortlist:", file.path(dir_stage5, "stage5_cycle_shortlist.csv"), "\n", sep="")
-  cat("  latex:   ", file.path(dir_stage5, "table_stage5_cycle_shortlist.tex"), "\n", sep="")
-}
-
-# Stage 4 manifest
-manifest4 <- tibble(path = list.files(dir_stage4, full.names = TRUE)) %>%
-  mutate(bytes = file.size(path), ext = tools::file_ext(path)) %>%
-  arrange(path)
-write_csv(manifest4, file.path(dir_stage4, "manifest_stage4.csv"))
-
-cat("\n====================\nStage 4+5: complete\n====================\n")
-
-
 
 # ============================================================
-# 05_stage5_run.R
-# Stage 5A: certify Hopf (refine root + transversality)
-# Stage 5B: time-domain sims just below/above root + cycle metrics
-# Stage 5C: robustness ring (small jitter) + survival
-# Stage 5D: final ranking + exports
+# Stage 5 (Consolidated): Hopf certification -> sims -> robustness -> final rank
+# - Uses Stage 4 shortlist as candidate pool
+# - If jacobian/fixed-point hooks exist: refines Hopf root + transversality
+# - Always runs sims around root (or around rF if no hopf)
 # ============================================================
+
+cat("\n====================\nStage 5: consolidated pipeline\n====================\n")
 
 suppressPackageStartupMessages({
   library(dplyr)
-  library(readr)
   library(tidyr)
+  library(readr)
   library(purrr)
   library(stringr)
-  library(deSolve)
 })
 
-# ----------------------------
-# 0) Paths + I/O
-# ----------------------------
-base_dir <- "outputs/wealth_goodwin/grid_search"  # <-- change if needed
-stage5_dir <- file.path(base_dir, "stage5")
-dir.create(stage5_dir, showWarnings = FALSE, recursive = TRUE)
+dir_stage5 <- file.path(base_dir, "stage5")
+dir_5A <- file.path(dir_stage5, "stage5A_hopf_cert")
+dir_5B <- file.path(dir_stage5, "stage5B_sim")
+dir_5C <- file.path(dir_stage5, "stage5C_robust")
+dir_5D <- file.path(dir_stage5, "stage5D_final")
 
-dir_5A <- file.path(stage5_dir, "stage5A_hopf_cert")
-dir_5B <- file.path(stage5_dir, "stage5B_sim")
-dir_5C <- file.path(stage5_dir, "stage5C_robust")
-dir_5D <- file.path(stage5_dir, "stage5D_final")
+dir.create(dir_stage5, showWarnings = FALSE, recursive = TRUE)
 dir.create(dir_5A, showWarnings = FALSE, recursive = TRUE)
 dir.create(dir_5B, showWarnings = FALSE, recursive = TRUE)
 dir.create(dir_5C, showWarnings = FALSE, recursive = TRUE)
 dir.create(dir_5D, showWarnings = FALSE, recursive = TRUE)
 
-# Candidate source (try these in order)
-cand_candidates <- c(
-  file.path(base_dir, "stage4_5_partition", "track_H_hopf_candidates.csv"),
-  file.path(base_dir, "stage4_scoring", "shortlist_top20_GATED.csv"),
-  file.path(base_dir, "stage4_scoring", "shortlist_top20.csv"),
-  file.path(base_dir, "grid_results_augmented.csv"),
-  file.path(base_dir, "grid_results.csv")
-)
-cand_file <- cand_candidates[file.exists(cand_candidates)][1]
-stopifnot(!is.na(cand_file))
-message("Stage 5 using candidates from: ", cand_file)
-
-cand <- readr::read_csv(cand_file, show_col_types = FALSE)
-
-# We require at least an id + a hopf seed (root guess). Name-flexible.
-# If your column names differ, map them below.
-map_id_col   <- c("id","ID","row_id","candidate_id")
-map_rF_col   <- c("rF_root","rF_star","rF_hopf","rF_guess","rF")
-
-id_col <- map_id_col[map_id_col %in% names(cand)][1]
-rF_col <- map_rF_col[map_rF_col %in% names(cand)][1]
-
-stopifnot(!is.na(id_col), !is.na(rF_col))
-
-# Optional steady-state columns if you already computed them
-map_e_col     <- c("e_star","e*","e_fp","e")
-map_om_col    <- c("omega_star","omega*","omega_fp","omega")
-map_d_col     <- c("d_star","d*","d_fp","d")
-
-e_col  <- map_e_col[map_e_col %in% names(cand)][1]
-om_col <- map_om_col[map_om_col %in% names(cand)][1]
-d_col  <- map_d_col[map_d_col %in% names(cand)][1]
+`%||%` <- function(a, b) if (is.null(a) || length(a) == 0) b else a
 
 # ----------------------------
-# 1) YOU plug model functions here (minimal hooks)
+# Stage 5 knobs
 # ----------------------------
-# You need these three functions defined somewhere in your project:
-#   (i)  get_par_from_row(row) -> named numeric vector/list of parameters
-#   (ii) fixed_point(par)      -> named numeric state c(e=?, omega=?, d=?)
-#   (iii) jacobian(par, xstar) -> 3x3 numeric matrix at fixed point
-#
-# Either source them:
-# source("R/model_core.R")
-#
-# Or define wrappers below that call your existing code.
-
-get_par_from_row <- function(row) {
-  # Minimal default: take all numeric columns except obvious non-params
-  # If your pipeline already has a clean "par_*" naming convention, adjust here.
-  drop <- c(id_col)
-  out <- row %>%
-    select(where(is.numeric)) %>%
-    select(-any_of(drop)) %>%
-    as.list()
-  out <- out[!vapply(out, is.null, logical(1))]
-  out
-}
-
-fixed_point <- function(par) {
-  stop("Define fixed_point(par): return c(e=..., omega=..., d=...)")
-}
-
-jacobian <- function(par, xstar) {
-  stop("Define jacobian(par, xstar): return 3x3 matrix")
-}
-
-ode_rhs <- function(t, state, par) {
-  stop("Define ode_rhs(t, state, par): return list(c(de, domega, dd))")
-}
-
-# ----------------------------
-# 2) Stage 5 knobs
-# ----------------------------
-eps_root   <- 0.002      # +/- around root for sim
-bracket_w  <- 0.02       # bracket width for uniroot around seed
+stage5_n_candidates <- 40          # how many from Stage 4 to attempt
+eps_root   <- 0.002               # +/- around root for sims
 t_end      <- 800
 dt         <- 0.05
 burn_in    <- 300
 perturb    <- c(e = 0.002, omega = -0.002, d = 0.02)
 
-# Robustness ring
-robust_reps <- 30
-jitter_sd   <- 0.02      # 2% multiplicative jitter
-jitter_cols <- c("phi2","kappa_max","lambda")  # change to your actual param names
+# robustness
+robust_reps  <- 25
+jitter_sd    <- 0.02              # multiplicative lognormal jitter
+jitter_cols  <- c("psi","phi2")   # change to the parameters that exist in your row
 robust_t_end <- 400
 
-# Cycle detection thresholds
+# cycle detection
 cycle_var_min <- 1e-5
 amp_min       <- 1e-3
 
 # ----------------------------
-# 3) Helpers (small + boring, like reality)
+# REQUIRED USER HOOK (ODE sim)
 # ----------------------------
+if (!exists("simulate_model")) {
+  stop("Stage 5 requires simulate_model(row, rF_sim, t_end, dt) returning columns: time,e,omega,d")
+}
+
+# ----------------------------
+# Candidate pool (prefer Stage 4 relaxed shortlist)
+# ----------------------------
+cand_pool_file <- file.path(dir_stage4, "stage4_shortlist_top50_GATED_RELAXED.csv")
+if (!file.exists(cand_pool_file)) cand_pool_file <- file.path(dir_stage4, "stage4_scored_candidates_GATED_RELAXED.csv")
+if (!file.exists(cand_pool_file)) cand_pool_file <- file.path(dir_stage4, "stage4_scored_candidates.csv")
+stopifnot(file.exists(cand_pool_file))
+
+cand <- read_csv(cand_pool_file, show_col_types = FALSE) %>%
+  slice_head(n = stage5_n_candidates) %>%
+  mutate(candidate_id = row_number())
+
+write_csv(cand, file.path(dir_5A, "stage5_candidate_pool.csv"))
+
+# ----------------------------
+# Optional analytic hooks (only if you defined them)
+# ----------------------------
+have_analytic <- exists("fixed_point_from_row") && exists("jacobian_from_row")
+
 eig_maxRe <- function(J) {
   ev <- eigen(J, only.values = TRUE)$values
   max(Re(ev))
 }
 
-hopf_indicator <- function(par, rF_value) {
-  # assumes your parameter list uses rF (or r_F) naming; adjust if needed
-  par2 <- par
-  if ("rF" %in% names(par2)) par2[["rF"]] <- rF_value
-  else if ("r_F" %in% names(par2)) par2[["r_F"]] <- rF_value
-  else if ("bar_r_F" %in% names(par2)) par2[["bar_r_F"]] <- rF_value
-  else par2[["rF"]] <- rF_value
-  
-  xstar <- fixed_point(par2)
-  J <- jacobian(par2, xstar)
+hopf_indicator <- function(row, rF_value) {
+  xstar <- fixed_point_from_row(row, rF_value)
+  J <- jacobian_from_row(row, rF_value)
   eig_maxRe(J)
 }
 
-refine_root <- function(par, rF_seed, width = bracket_w) {
-  a <- max(1e-6, rF_seed - width)
-  b <- rF_seed + width
-  fa <- hopf_indicator(par, a)
-  fb <- hopf_indicator(par, b)
+refine_root <- function(row, rF_seed, bracket_w = 0.02) {
+  a <- max(1e-6, rF_seed - bracket_w)
+  b <- rF_seed + bracket_w
+  fa <- hopf_indicator(row, a)
+  fb <- hopf_indicator(row, b)
   
-  # If no sign change, expand bracket a bit (not forever).
   k <- 0
-  while (fa * fb > 0 && k < 6) {
-    width <- width * 1.5
-    a <- max(1e-6, rF_seed - width)
-    b <- rF_seed + width
-    fa <- hopf_indicator(par, a)
-    fb <- hopf_indicator(par, b)
+  while (is.finite(fa) && is.finite(fb) && fa * fb > 0 && k < 6) {
+    bracket_w <- bracket_w * 1.5
+    a <- max(1e-6, rF_seed - bracket_w)
+    b <- rF_seed + bracket_w
+    fa <- hopf_indicator(row, a)
+    fb <- hopf_indicator(row, b)
     k <- k + 1
   }
   
+  if (!is.finite(fa) || !is.finite(fb)) {
+    return(list(ok = FALSE, reason = "nonfinite_indicator", rF_root = NA_real_, a=a, b=b, fa=fa, fb=fb))
+  }
   if (fa * fb > 0) {
-    return(list(ok = FALSE, reason = "no_bracket_sign_change", a = a, b = b, fa = fa, fb = fb, rF_root = NA_real_))
+    return(list(ok = FALSE, reason = "no_bracket_sign_change", rF_root = NA_real_, a=a, b=b, fa=fa, fb=fb))
   }
   
-  rr <- uniroot(function(x) hopf_indicator(par, x), interval = c(a, b))
-  list(ok = TRUE, reason = "ok", a = a, b = b, fa = fa, fb = fb, rF_root = rr$root)
+  rr <- uniroot(function(x) hopf_indicator(row, x), interval = c(a, b))
+  list(ok = TRUE, reason = "ok", rF_root = rr$root, a=a, b=b, fa=fa, fb=fb)
 }
 
-transversality_fd <- function(par, rF_root, h = 1e-4) {
-  # d/d rF of maxRe eigenvalue at root (finite difference)
-  f1 <- hopf_indicator(par, rF_root - h)
-  f2 <- hopf_indicator(par, rF_root + h)
-  (f2 - f1) / (2 * h)
+transversality_fd <- function(row, rF_root, h = 1e-4) {
+  f1 <- hopf_indicator(row, rF_root - h)
+  f2 <- hopf_indicator(row, rF_root + h)
+  (f2 - f1) / (2*h)
 }
 
-simulate_one <- function(par, state0, t_end, dt) {
-  times <- seq(0, t_end, by = dt)
-  out <- deSolve::ode(
-    y = state0,
-    times = times,
-    func = ode_rhs,
-    parms = par,
-    method = "lsoda"
-  )
-  as_tibble(out)
-}
+# ----------------------------
+# 5A: Hopf root selection + optional certification/refinement
+# ----------------------------
+cand_5A <- cand %>%
+  mutate(
+    # choose starting "seed" root:
+    # 1) rF_root_med if present, else 2) rF as fallback
+    rF_seed = case_when(
+      "rF_root_med" %in% names(cand) & is.finite(rF_root_med) ~ as.numeric(rF_root_med),
+      "rF_root" %in% names(cand) & is.finite(rF_root) ~ as.numeric(rF_root),
+      TRUE ~ as.numeric(rF)
+    )
+  ) %>%
+  mutate(
+    cert = pmap(., function(...) {
+      row <- tibble(...)
+      rF_seed <- row$rF_seed
+      
+      if (!have_analytic) {
+        # no analytic hooks -> just accept the seed and move on
+        return(tibble(
+          hopf_cert_ok = NA, cert_reason = "no_analytic_hooks",
+          rF_root = rF_seed, bracket_a = NA_real_, bracket_b = NA_real_,
+          transversality = NA_real_
+        ))
+      }
+      
+      res <- refine_root(row, rF_seed)
+      if (!res$ok) {
+        return(tibble(
+          hopf_cert_ok = FALSE, cert_reason = res$reason,
+          rF_root = NA_real_, bracket_a = res$a, bracket_b = res$b,
+          transversality = NA_real_
+        ))
+      }
+      
+      tr <- transversality_fd(row, res$rF_root)
+      tibble(
+        hopf_cert_ok = TRUE, cert_reason = "ok",
+        rF_root = res$rF_root, bracket_a = res$a, bracket_b = res$b,
+        transversality = tr
+      )
+    })
+  ) %>%
+  unnest(cert)
 
+write_csv(cand_5A, file.path(dir_5A, "stage5A_hopf_certified.csv"))
+
+# ----------------------------
+# Helpers for sims
+# ----------------------------
 cycle_metrics <- function(sim, burn_in = burn_in, var_min = cycle_var_min, amp_min = amp_min) {
   sim2 <- sim %>% filter(time >= burn_in)
-  
-  # choose omega as the oscillator proxy (change if you prefer e or d)
   if (!("omega" %in% names(sim2))) return(tibble(has_cycle = FALSE, reason = "missing_omega"))
   
   x <- sim2$omega
   t <- sim2$time
-  
   v <- var(x, na.rm = TRUE)
-  amp <- (max(x, na.rm = TRUE) - min(x, na.rm = TRUE)) / 2
+  a <- (max(x, na.rm = TRUE) - min(x, na.rm = TRUE)) / 2
   
-  if (!is.finite(v) || !is.finite(amp)) return(tibble(has_cycle = FALSE, reason = "nonfinite"))
-  if (v < var_min || amp < amp_min) return(tibble(has_cycle = FALSE, reason = "low_variance_or_amp", var = v, amp = amp))
+  if (!is.finite(v) || !is.finite(a)) return(tibble(has_cycle = FALSE, reason = "nonfinite"))
+  if (v < var_min || a < amp_min) return(tibble(has_cycle = FALSE, reason = "low_var_or_amp", var=v, amp=a))
   
-  # crude period: average spacing of local maxima
   dx <- diff(x)
-  # local maxima indices: slope goes + to -
   peaks <- which(head(dx, -1) > 0 & tail(dx, -1) <= 0) + 1
-  if (length(peaks) < 3) return(tibble(has_cycle = TRUE, reason = "few_peaks", var = v, amp = amp, period = NA_real_))
+  if (length(peaks) < 3) return(tibble(has_cycle = TRUE, reason = "few_peaks", var=v, amp=a, period=NA_real_))
   
   periods <- diff(t[peaks])
   tibble(
-    has_cycle = TRUE,
-    reason = "ok",
-    var = v,
-    amp = amp,
+    has_cycle = TRUE, reason = "ok",
+    var = v, amp = a,
     period = mean(periods, na.rm = TRUE),
-    omega_mean = mean(x, na.rm = TRUE),
-    omega_min = min(x, na.rm = TRUE),
-    omega_max = max(x, na.rm = TRUE)
+    omega_mean = mean(x, na.rm = TRUE)
   )
 }
 
 bounded_ok <- function(sim) {
-  # sanity bounds (adjust if your model allows beyond these)
   ok <- TRUE
   if ("e" %in% names(sim)) ok <- ok && all(is.finite(sim$e)) && all(sim$e >= 0) && all(sim$e <= 1.5)
   if ("omega" %in% names(sim)) ok <- ok && all(is.finite(sim$omega)) && all(sim$omega >= 0) && all(sim$omega <= 1.5)
@@ -1889,142 +1643,113 @@ bounded_ok <- function(sim) {
 }
 
 # ----------------------------
-# 4) Stage 5A: certify Hopf candidates
+# 5B: simulate below/above root + metrics
 # ----------------------------
-cert <- cand %>%
-  mutate(
-    candidate_id = .data[[id_col]],
-    rF_seed = .data[[rF_col]]
-  ) %>%
-  select(candidate_id, rF_seed, everything()) %>%
-  mutate(
-    cert = pmap(., function(...) {
-      row <- tibble(...)
-      par <- get_par_from_row(row)
-      
-      # If steady state was stored, you can skip fixed_point in the indicator,
-      # but we keep it unified and robust.
-      res <- refine_root(par, rF_seed)
-      if (!res$ok) return(tibble(ok = FALSE, reason = res$reason, rF_root = NA_real_, bracket_a = res$a, bracket_b = res$b))
-      
-      tr <- transversality_fd(par, res$rF_root)
-      tibble(ok = TRUE, reason = "ok", rF_root = res$rF_root, bracket_a = res$a, bracket_b = res$b, transversality = tr)
-    })
-  ) %>%
-  unnest(cert)
-
-cert_ok  <- cert %>% filter(ok)
-cert_bad <- cert %>% filter(!ok)
-
-write_csv(cert_ok,  file.path(dir_5A, "hopf_certified.csv"))
-write_csv(cert_bad, file.path(dir_5A, "hopf_rejected.csv"))
-
-message("Stage 5A done: certified=", nrow(cert_ok), " rejected=", nrow(cert_bad))
-
-# ----------------------------
-# 5) Stage 5B: simulate below/above root + cycle metrics
-# ----------------------------
-sim_results <- cert_ok %>%
+sim_5B <- cand_5A %>%
   mutate(
     sim = pmap(., function(...) {
       row <- tibble(...)
-      par <- get_par_from_row(row)
+      id <- as.character(row$candidate_id)
       
-      rF_root <- row$rF_root
+      rF_root <- as.numeric(row$rF_root)
+      if (!is.finite(rF_root)) rF_root <- as.numeric(row$rF_seed)
+      
       rF_lo <- max(1e-6, rF_root - eps_root)
       rF_hi <- rF_root + eps_root
       
-      set_rF <- function(par, val) {
-        if ("rF" %in% names(par)) par[["rF"]] <- val
-        else if ("r_F" %in% names(par)) par[["r_F"]] <- val
-        else if ("bar_r_F" %in% names(par)) par[["bar_r_F"]] <- val
-        else par[["rF"]] <- val
-        par
+      # initial condition: use fixed point if available, else use row's steady states, else ad-hoc
+      x0 <- c(e = NA_real_, omega = NA_real_, d = NA_real_)
+      if (have_analytic) {
+        xstar <- fixed_point_from_row(row, rF_lo)
+        x0 <- xstar + perturb
+      } else {
+        # try columns
+        if (all(c("e_star","omega_star","d_star") %in% names(row))) {
+          x0 <- c(e = row$e_star, omega = row$omega_star, d = row$d_star) + perturb
+        } else {
+          x0 <- c(e = 0.90, omega = 0.65, d = 0.5) + perturb
+        }
       }
       
-      par_lo <- set_rF(par, rF_lo)
-      par_hi <- set_rF(par, rF_hi)
+      sim_lo <- tryCatch(simulate_model(row, rF_sim = rF_lo, t_end = t_end, dt = dt), error = function(e) NULL)
+      sim_hi <- tryCatch(simulate_model(row, rF_sim = rF_hi, t_end = t_end, dt = dt), error = function(e) NULL)
       
-      # initial state: fixed point + perturb
-      xstar <- fixed_point(par)  # at seed rF if embedded in par
-      # better: use root-specific, so override:
-      xstar_lo <- fixed_point(par_lo)
-      x0 <- xstar_lo + perturb
+      if (is.null(sim_lo) || is.null(sim_hi)) {
+        return(tibble(
+          sim_ok = FALSE, sim_reason = "simulate_model_error",
+          bounded_below = NA, bounded_above = NA,
+          has_cycle_below = NA, has_cycle_above = NA,
+          amp_below = NA_real_, amp_above = NA_real_,
+          period_below = NA_real_, period_above = NA_real_,
+          omega_mean_above = NA_real_,
+          rF_lo = rF_lo, rF_hi = rF_hi
+        ))
+      }
       
-      sim_lo <- simulate_one(par_lo, x0, t_end = t_end, dt = dt)
-      sim_hi <- simulate_one(par_hi, x0, t_end = t_end, dt = dt)
+      sim_lo <- as_tibble(sim_lo)
+      sim_hi <- as_tibble(sim_hi)
+      
+      write_csv(sim_lo, file.path(dir_5B, paste0("traj_", id, "_below.csv")))
+      write_csv(sim_hi, file.path(dir_5B, paste0("traj_", id, "_above.csv")))
       
       met_lo <- cycle_metrics(sim_lo)
       met_hi <- cycle_metrics(sim_hi)
       
-      ok_lo <- bounded_ok(sim_lo)
-      ok_hi <- bounded_ok(sim_hi)
-      
-      # Save trajectory panels if you want (basic CSV export instead of plots here)
-      id <- as.character(row$candidate_id)
-      write_csv(sim_lo, file.path(dir_5B, paste0("traj_", id, "_below.csv")))
-      write_csv(sim_hi, file.path(dir_5B, paste0("traj_", id, "_above.csv")))
-      
       tibble(
-        bounded_below = ok_lo,
-        bounded_above = ok_hi,
+        sim_ok = TRUE, sim_reason = "ok",
+        bounded_below = bounded_ok(sim_lo),
+        bounded_above = bounded_ok(sim_hi),
         has_cycle_below = met_lo$has_cycle %||% FALSE,
         has_cycle_above = met_hi$has_cycle %||% FALSE,
         amp_below = met_lo$amp %||% NA_real_,
         amp_above = met_hi$amp %||% NA_real_,
         period_below = met_lo$period %||% NA_real_,
         period_above = met_hi$period %||% NA_real_,
-        omega_mean_above = met_hi$omega_mean %||% NA_real_
+        omega_mean_above = met_hi$omega_mean %||% NA_real_,
+        rF_lo = rF_lo, rF_hi = rF_hi
       )
     })
   ) %>%
   unnest(sim)
 
-write_csv(sim_results, file.path(dir_5B, "stage5B_cycle_metrics.csv"))
-message("Stage 5B done: wrote trajectories + metrics.")
+write_csv(sim_5B, file.path(dir_5B, "stage5B_cycle_metrics.csv"))
 
 # ----------------------------
-# 6) Stage 5C: robustness ring (jitter) on certified + cycle-above cases
+# 5C: robustness ring for good ones
 # ----------------------------
-targets <- sim_results %>%
-  filter(bounded_above, has_cycle_above)
+targets <- sim_5B %>%
+  filter(sim_ok == TRUE, bounded_above == TRUE, has_cycle_above == TRUE)
 
-robust <- targets %>%
+robust_5C <- targets %>%
   mutate(
     robust = pmap(., function(...) {
       row <- tibble(...)
-      par0 <- get_par_from_row(row)
       
-      # set rF slightly above root for robustness testing
-      rF_test <- row$rF_root + eps_root
-      if ("rF" %in% names(par0)) par0[["rF"]] <- rF_test
-      else if ("r_F" %in% names(par0)) par0[["r_F"]] <- rF_test
-      else if ("bar_r_F" %in% names(par0)) par0[["bar_r_F"]] <- rF_test
-      else par0[["rF"]] <- rF_test
+      rF_test <- as.numeric(row$rF_root)
+      if (!is.finite(rF_test)) rF_test <- as.numeric(row$rF_seed)
+      rF_test <- rF_test + eps_root
       
-      # base IC: fixed point at test rF + perturb
-      xstar <- fixed_point(par0)
-      x0 <- xstar + perturb
-      
-      reps <- seq_len(robust_reps)
-      out <- map_dfr(reps, function(r) {
-        par <- par0
+      out <- map_dfr(seq_len(robust_reps), function(rep_id) {
+        rowj <- row
         
-        # multiplicative jitter on selected parameters (only if present)
+        # jitter selected numeric parameters if present
         for (nm in jitter_cols) {
-          if (nm %in% names(par)) {
-            par[[nm]] <- par[[nm]] * exp(rnorm(1, mean = 0, sd = jitter_sd))
+          if (nm %in% names(rowj) && is.finite(rowj[[nm]])) {
+            rowj[[nm]] <- rowj[[nm]] * exp(rnorm(1, 0, jitter_sd))
           }
         }
         
-        sim <- simulate_one(par, x0, t_end = robust_t_end, dt = dt)
-        okb <- bounded_ok(sim)
+        sim <- tryCatch(simulate_model(rowj, rF_sim = rF_test, t_end = robust_t_end, dt = dt), error=function(e) NULL)
+        if (is.null(sim)) {
+          return(tibble(rep = rep_id, ok = FALSE, bounded = FALSE, has_cycle = FALSE, amp = NA_real_, period = NA_real_))
+        }
+        sim <- as_tibble(sim)
         met <- cycle_metrics(sim, burn_in = min(burn_in, robust_t_end/2))
-        
         tibble(
-          rep = r,
-          bounded = okb,
-          has_cycle = (met$has_cycle %||% FALSE),
+          rep = rep_id,
+          ok = TRUE,
+          bounded = bounded_ok(sim),
+          has_cycle = met$has_cycle %||% FALSE,
           amp = met$amp %||% NA_real_,
           period = met$period %||% NA_real_
         )
@@ -2041,31 +1766,29 @@ robust <- targets %>%
   ) %>%
   unnest(robust)
 
-write_csv(robust, file.path(dir_5C, "robustness_summary.csv"))
-message("Stage 5C done: robustness summary exported.")
+write_csv(robust_5C, file.path(dir_5C, "robustness_summary.csv"))
 
 # ----------------------------
-# 7) Stage 5D: rank + export top candidates
+# 5D: final ranking
 # ----------------------------
-final <- sim_results %>%
-  left_join(robust %>% select(candidate_id, survival_rate, bounded_rate, cycle_rate, amp_med, period_med),
+final_5D <- sim_5B %>%
+  left_join(robust_5C %>% select(candidate_id, survival_rate, bounded_rate, cycle_rate, amp_med, period_med),
             by = "candidate_id") %>%
   mutate(
     survival_rate = coalesce(survival_rate, 0),
     bounded_rate  = coalesce(bounded_rate, 0),
     cycle_rate    = coalesce(cycle_rate, 0),
-    # simple score: prioritize robust cycles + boundedness
+    # higher is better
     score_stage5 = 3*survival_rate + 1*bounded_rate + 1*cycle_rate +
       0.2*if_else(is.finite(amp_above), pmin(amp_above, 1), 0)
   ) %>%
   arrange(desc(score_stage5))
 
-write_csv(final, file.path(dir_5D, "stage5_final_ranked.csv"))
-write_csv(final %>% slice_head(n = 20), file.path(dir_5D, "stage5_top20.csv"))
+write_csv(final_5D, file.path(dir_5D, "stage5_final_ranked.csv"))
+write_csv(final_5D %>% slice_head(n = 20), file.path(dir_5D, "stage5_top20.csv"))
 
-message("Stage 5D done: ranked outputs written to ", dir_5D)
-
-# ------------------------------------------------------------
-# tiny helper: null-coalescing (because R loves suffering)
-`%||%` <- function(a, b) if (is.null(a) || length(a) == 0) b else a
-
+cat("\nStage 5 complete.\n")
+cat("  5A: ", file.path(dir_5A, "stage5A_hopf_certified.csv"), "\n", sep="")
+cat("  5B: ", file.path(dir_5B, "stage5B_cycle_metrics.csv"), "\n", sep="")
+cat("  5C: ", file.path(dir_5C, "robustness_summary.csv"), "\n", sep="")
+cat("  5D: ", file.path(dir_5D, "stage5_final_ranked.csv"), "\n", sep="")
