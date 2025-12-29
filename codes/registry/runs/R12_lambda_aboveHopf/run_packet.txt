@@ -1,0 +1,28 @@
+========================
+STAGE 1 RUN PACKET (v1)
+========================
+
+(1) HEADER
+RunID: R12_lambda_aboveHopf
+Date: 2025-12-19
+Model stamp: wealth_goodwin_hopf_cycles.R
+Case: aboveHopf
+μ varied: lambda
+μ value(s): 60.0
+
+(5) SIMULATION: TAIL SUMMARY (last 25%)
+e mean/sd: 0.8 / 1.39334e-10
+omega mean/sd: 0.83608 / 4.29481e-10
+d mean/sd: 0.927635 / 1.25168e-08
+u mean/sd: 0.969971 / 3.42306e-10
+xi mean/sd: 4.33415 / 4.6165e-08
+Period est (proxy): NA
+
+(6) ADMISSIBILITY
+min(e)=0.792706 min(omega)=0.83 min(d)=0.927635 min(u)=0.947624 min(xi)=4.00752
+min(Delta)=0.562778 | pct Delta<=0 = 0
+pct kappa clamped = NA
+
+(7) PLOTS PROVIDED
+timeseries_end, tail_zoom, phase_omega_e, phase_d_omega, phase_u_d, phase_xi_d, phase_xi_u
+

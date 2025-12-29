@@ -1,0 +1,6 @@
+plane,rank_rule,feasible_share,hopf_band_share,sign_change
+"(phi1, i)",Good: has Hopf boundary (H changes sign),0.45,1,TRUE
+"(r0, lambda)",Good: has Hopf boundary (H changes sign),0.577989130434783,0.59332393041843,TRUE
+"(i, lambda)",Good: has Hopf boundary (H changes sign),0.88015625,0.567548375643529,TRUE
+"(phi1, lambda)",Good: has Hopf boundary (H changes sign),0.925,0.554054054054054,TRUE
+"(phi0, phi1)",Weak: no sign-change in H (likely no Hopf in this window),1,1,FALSE

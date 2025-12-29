@@ -1,0 +1,16 @@
+file,exists,reviewed,status,purpose
+hopf_plane_scores.csv,TRUE,FALSE,Ready to review,Raw plane ranking metrics (ROBUST fields)
+TABLE_plane_ranking_tidy.csv,TRUE,FALSE,Ready to review,Tidy plane ranking table
+PLOT_plane_selection_scatter.png,TRUE,FALSE,Ready to review,Plane selection scatter plot
+hopf_plane_phi1_lambda.csv,TRUE,FALSE,Ready to review,Plane grid points for FIG A
+hopf_plane_phi1_i.csv,TRUE,FALSE,Ready to review,Plane grid points for FIG B (if chosen)
+FIG_A_hopf_plane_signH_phi1_lambda.png,TRUE,TRUE,Reviewed,"Hopf map A (phi1, lambda)"
+FIG_B_hopf_plane_signH_<...>.png,TRUE,TRUE,Reviewed,Hopf map B (chosen plane)
+TABLE_scenarios_tail_diagnostics.csv,TRUE,FALSE,Ready to review,Tail-window diagnostics per scenario
+TABLE_scenarios_tidy.csv,TRUE,FALSE,Ready to review,"Scenario table (lambda_rel, cycle_flag)"
+PLOT_scenarios_amplitudes_vs_lambdaRel.png,TRUE,FALSE,Ready to review,Amplitudes vs lambda_rel
+PLOT_scenarios_period_vs_lambdaRel.png,TRUE,FALSE,Ready to review,Period vs lambda_rel
+phase_end_*,TRUE,FALSE,Ready to review,Phase plots with start/end labels
+TABLE_plane_H_audit.csv,TRUE,FALSE,Ready to review,Plane audit: H quantiles (feasible RH only)
+PLOT_plane_H_quantiles.png,TRUE,TRUE,Reviewed,Plane audit plot: H median + 5–95%
+TABLE_scenarios_audit_reclassified.csv,TRUE,FALSE,Ready to review,Scenario audit: whole-path domain + amp thresholds

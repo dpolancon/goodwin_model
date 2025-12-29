@@ -1,0 +1,1 @@
+try_id,cand_id,sigma,g_n,i,delta,kappa_min,kappa_max,r_star,d_star,omega_star,rF,psi,phi2,r_implied,lambda_star,f_star,Z_star,phi1_endog,c1,c2,c3,H,maxReEig,maxImEig,stable,RH_ok,has_complex,reason,n_roots,rF_root_med,rF_root_p25,rF_root_p75,has_hopf,pen_omega,pen_sigma,pen_lambda,pen_hopf,pen_dist,pen_RH,pen_cx,score

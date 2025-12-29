@@ -1,0 +1,52 @@
+{
+  "RunID": "R12_lambda_aboveHopf",
+  "Date": "2025-12-19",
+  "Case": "aboveHopf",
+  "mu_name": "lambda",
+  "mu_value": "60.0",
+  "model_stamp": "wealth_goodwin_hopf_cycles.R",
+  "params": {
+    "alpha": ["function (colour, alpha = NA) ", "{", "    input <- recycle_common(colour = colour, alpha = alpha)", "    colour <- input[[\"colour\"]]", "    alpha <- input[[\"alpha\"]]", "    rgb <- farver::decode_colour(colour, alpha = TRUE)", "    rgb[!is.na(alpha), 4] <- alpha[!is.na(alpha)]", "    farver::encode_colour(rgb, rgb[, 4])", "}"],
+    "beta": ["function (a, b) ", ".Internal(beta(a, b))"],
+    "delta": null,
+    "phi0": null,
+    "phi1": null,
+    "i": null,
+    "sigma": ["function (object, ...) ", "UseMethod(\"sigma\")"],
+    "u_star": null,
+    "lambda_u": null
+  },
+  "reduced": {
+    "e_star": null,
+    "omega_star": null,
+    "d_star": null,
+    "H": null,
+    "dH_dmu": null
+  },
+  "audit": {
+    "min_e": 0.7927,
+    "min_omega": 0.83,
+    "min_d": 0.9276,
+    "min_u": 0.9476,
+    "min_xi": 4.0075,
+    "min_Delta": 0.5628,
+    "pct_Delta_le0": 0,
+    "pct_kappa_clamped": "NA"
+  },
+  "tail": {
+    "tail_mean_e": 0.8,
+    "tail_sd_e": 1.3933e-10,
+    "tail_mean_omega": 0.8361,
+    "tail_sd_omega": 4.2948e-10,
+    "tail_mean_d": 0.9276,
+    "tail_sd_d": 1.2517e-08,
+    "tail_mean_u": 0.97,
+    "tail_sd_u": 3.4231e-10,
+    "tail_mean_xi": 4.3342,
+    "tail_sd_xi": 4.6165e-08,
+    "period_est": "NA"
+  },
+  "packet_path": "C:/goodwin_model/codes/registry/runs/R12_lambda_aboveHopf/run_packet.txt",
+  "analysis_path": "C:/goodwin_model/codes/registry/runs/R12_lambda_aboveHopf/analysis_I_VI.md",
+  "plots_dir": "C:/goodwin_model/codes/registry/runs/R12_lambda_aboveHopf/plots"
+}

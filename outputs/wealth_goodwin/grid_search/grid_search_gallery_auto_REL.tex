@@ -1,0 +1,304 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{placeins}
+\usepackage{hyperref}
+
+
+% Render CSVs directly in PDF
+\usepackage{csvsimple}
+
+\hypersetup{
+	colorlinks=true,
+	linkcolor=blue,
+	urlcolor=blue
+}
+
+% ---------- CSV tables with rounding + underscore safety ----------
+\usepackage{pgf}           % ensures pgfmath exists
+\usepackage{pgfplots}      % safe: brings in math + table infrastructure
+\usepackage{pgfplotstable} % CSV -> LaTeX tables
+\pgfplotsset{compat=1.18}  % pick a stable compat (adjust if you want)
+
+% Fallback: define \pgfmathifisnumber if missing (some installs/load orders...)
+\makeatletter
+\@ifundefined{pgfmathifisnumber}{%
+	\newcommand{\pgfmathifisnumber}[3]{%
+		\pgfmathfloatparsenumber{#1}%
+		% if parsing fails, pgfmath sets flags; this is a decent practical test:
+		\edef\pgfmath@tmp{\pgfmathresult}%
+		\ifx\pgfmath@tmp\pgfutil@empty
+		#3%
+		\else
+		#2%
+		\fi
+	}%
+}{}
+\makeatother
+
+% CSV -> booktabs table, rounding numeric-looking cells to 2 decimals
+\newcommand{\CSVTwoDecTable}[2][]{%
+	\begingroup
+	\catcode`\_=12 % make "_" a normal character locally (headers like share_RH_ok)
+	\pgfplotstabletypeset[
+	col sep=comma,
+	every head row/.style={before row=\toprule, after row=\midrule},
+	every last row/.style={after row=\bottomrule},
+	% Round numeric cells:
+	postproc cell content/.code={%
+		\pgfmathifisnumber{##1}{%
+			\pgfkeyssetvalue{/pgfplots/table/@cell content}{%
+				\pgfmathprintnumber[fixed,precision=2]{##1}%
+			}%
+		}{}%
+	},
+	#1
+	]{#2}%
+	\endgroup
+}
+
+
+
+% Tell LaTeX where to look for images (relative paths)
+% Assumes this .tex sits inside outputs/wealth_goodwin/grid_search/
+\graphicspath{
+	{stage1_backbone/}
+	{stage2_finance/}
+	{stage3_stability/}
+	{stage4_scoring/}
+	{stage5_simulation/}
+}
+
+% spacing sanity (less whitespace between floats)
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.55em}
+\setlength{\textfloatsep}{10pt plus 2pt minus 2pt}
+\setlength{\floatsep}{8pt plus 2pt minus 2pt}
+\setlength{\intextsep}{8pt plus 2pt minus 2pt}
+\captionsetup{font=small,skip=4pt}
+
+\begin{document}
+	
+	\section{Grid-search outputs gallery (fixed paths)}
+	
+	% ============================================================
+	\subsection{Stage 1 backbone diagnostics}
+	% ============================================================
+	
+	\begin{figure}[p]\centering
+		\includegraphics[width=0.75\linewidth]{backbone_rate_by_kappa_max.png}
+		\caption{Backbone OK rate by $\kappa_{\max}$.}
+	\end{figure}
+	
+	\begin{figure}[p]\centering
+		\includegraphics[width=0.75\linewidth]{omega_vs_r.png}
+		\caption{Stage 1: $\omega^\ast$ vs $r^\ast$ (faceted by $\kappa_{\max}$).}
+	\end{figure}
+	
+	\begin{figure}[p]\centering
+		\includegraphics[width=0.75\linewidth]{d_vs_r.png}
+		\caption{Stage 1: $d^\ast$ vs $r^\ast$ (faceted by $\kappa_{\max}$).}
+	\end{figure}
+	
+	\begin{figure}[p]\centering
+		\includegraphics[width=0.75\linewidth]{hist_omega.png}
+		\caption{Stage 1: histogram of $\omega^\ast$ (faceted by $\kappa_{\max}$).}
+	\end{figure}
+	
+	\begin{figure}[p]\centering
+		\includegraphics[width=0.75\linewidth]{hist_d.png}
+		\caption{Stage 1: histogram of $d^\ast$ (faceted by $\kappa_{\max}$).}
+	\end{figure}
+	
+	\begin{figure}[p]\centering
+		\includegraphics[width=0.75\linewidth]{reasons_by_kappa_max_tile.png}
+		\caption{Stage 1: failure reasons by $\kappa_{\max}$ (tile).}
+	\end{figure}
+	
+	\FloatBarrier
+	
+	% ============================================================
+	\clearpage
+	\subsection{Stage 2 finance/discipline diagnostics}
+	% ============================================================
+	
+	\begin{figure}[p]\centering
+		\includegraphics[width=0.75\linewidth]{econ_ok_cloud.png}
+		\caption{Stage 2: econ\_ok cloud in $(r_F,\phi_2)$, faceted by $\psi$ and $\kappa_{\max}$.}
+	\end{figure}
+	
+	\begin{figure}[p]\centering
+		\includegraphics[width=0.75\linewidth]{lambda_dist.png}
+		\caption{Stage 2: $\lambda^\ast$ distribution (faceted by $\kappa_{\max}$).}
+	\end{figure}
+	
+	\begin{figure}[p]\centering
+		\includegraphics[width=0.75\linewidth]{f_vs_lambda.png}
+		\caption{Stage 2: $f^\ast$ vs $\lambda^\ast$ (faceted by $\kappa_{\max}$).}
+	\end{figure}
+	
+	\FloatBarrier
+	
+	% ============================================================
+	\clearpage
+	\subsection{Stage 3 stability and Hopf diagnostics}
+	% ============================================================
+	
+	\begin{figure}[p]\centering
+		\includegraphics[width=0.80\linewidth]{stability_tiles.png}
+		\caption{Stage 3: stability tiles (faceted by $\psi$ and $\kappa_{\max}$).}
+	\end{figure}
+	
+	\begin{figure}[p]\centering
+		\includegraphics[width=0.80\linewidth]{RH_ok_tiles.png}
+		\caption{Stage 3: RH positivity tiles ($c_1,c_2,c_3>0$), faceted by $\psi$ and $\kappa_{\max}$.}
+	\end{figure}
+	
+	\begin{figure}[p]\centering
+		\includegraphics[width=0.80\linewidth]{maxRe_tiles.png}
+		\caption{Stage 3: $\max \Re(\lambda)$ heatmap, faceted by $\psi$ and $\kappa_{\max}$.}
+	\end{figure}
+	
+	\begin{figure}[p]\centering
+		\includegraphics[width=0.80\linewidth]{hopf_tiles.png}
+		\caption{Stage 3: sign($H$) tiles, faceted by $\psi$ and $\kappa_{\max}$.}
+	\end{figure}
+	
+	\FloatBarrier
+	\clearpage
+	
+	\begin{figure}[p]\centering
+		\includegraphics[width=0.80\linewidth]{hopf_boundary_rFroot_phi2.png}
+		\caption{Stage 3: verified Hopf boundary points in $(r_F^{root},\phi_2)$ (faceted by $\psi$ and $\kappa_{\max}$).}
+	\end{figure}
+	
+	\begin{figure}[p]\centering
+		\includegraphics[width=0.80\linewidth]{hopf_root_hist.png}
+		\caption{Stage 3: histogram of verified Hopf root locations ($r_F^{root}$).}
+	\end{figure}
+	
+	\begin{figure}[p]\centering
+		\includegraphics[width=0.80\linewidth]{hopf_roots_scatter.png}
+		\caption{Stage 3: verified Hopf roots scatter ($r_F^{root}$ vs $\kappa_{\max}$).}
+	\end{figure}
+	
+	\begin{figure}[p]\centering
+		\includegraphics[width=0.80\linewidth]{hopf_transversality_map.png}
+		\caption{Stage 3: transversality proxy map (finite-difference slope $d(\max\Re)/dr_F$ at root).}
+	\end{figure}
+	
+	\FloatBarrier
+	\clearpage
+	
+	\begin{figure}[p]\centering
+		\includegraphics[width=0.80\linewidth]{hopf_surface_tiles.png}
+		\caption{Hopf surface: median $r_F^{root}$ as tiles over $(\phi_2,\psi)$, faceted by $(\sigma,\kappa_{\max})$.}
+	\end{figure}
+	
+	\begin{figure}[p]\centering
+		\includegraphics[width=0.80\linewidth]{hopf_surface_counts.png}
+		\caption{Hopf surface support: number of verified roots per cell over $(\phi_2,\psi)$.}
+	\end{figure}
+	
+	\begin{figure}[p]\centering
+		\includegraphics[width=0.80\linewidth]{hopf_surface_cloud.png}
+		\caption{Hopf surface cloud (projection): color = median $r_F^{root}$, size = support count.}
+	\end{figure}
+	
+	\begin{figure}[p]\centering
+		\includegraphics[width=0.80\linewidth]{hopf_surface_contours.png}
+		\caption{Hopf surface contours (projection): median $r_F^{root}$ over $(\phi_2,\psi)$.}
+	\end{figure}
+	
+	\FloatBarrier
+	\clearpage
+	
+	% ============================================================
+	\subsection{Stage 3 summary tables (CSV-backed to avoid alignment issues)}
+	% ============================================================
+	
+	\begin{table}[H]
+		\centering
+		\caption{Stage 3 summary by $(\psi,\kappa_{\max})$ (from CSV export).}
+		\CSVTwoDecTable{stage3_stability/table_stage3_summary.csv}
+	\end{table}
+	
+	\clearpage
+	
+	\begin{table}[H]
+		\centering
+		\caption{Verified Hopf root summary by $(\psi,\kappa_{\max})$ (from CSV export).}
+		\CSVTwoDecTable{stage3_stability/table_hopf_summary.csv}
+	\end{table}
+	
+	\FloatBarrier
+	\clearpage
+	
+	% ============================================================
+	\subsection{Stage 4 scoring and shortlists}
+	% ============================================================
+	
+	\subsubsection{Gate diagnostics (CSV)}
+	\begin{table}[H]
+		\centering
+		\caption{Stage 4 gate diagnostics (from \texttt{stage4\_scoring/gate\_diagnostics.csv}).}
+		\CSVTwoDecTable{stage4_scoring/gate_diagnostics.csv}
+	\end{table}
+	
+	\FloatBarrier
+	
+	\subsubsection{Score diagnostics (plots)}
+	\begin{figure}[p]\centering
+		\includegraphics[width=0.80\linewidth]{score_scatter_omega_sigma.png}
+		\caption{Stage 4: $\omega^\ast$ vs $\sigma$ colored by score deciles (lower score = preferred).}
+	\end{figure}
+	
+	\begin{figure}[p]\centering
+		\includegraphics[width=0.80\linewidth]{penalty_tradeoff_omega_sigma.png}
+		\caption{Stage 4: penalty tradeoff diagnostic ($\omega^\ast$ vs $\sigma$).}
+	\end{figure}
+	
+	\begin{figure}[p]\centering
+		\includegraphics[width=0.80\linewidth]{score_hist.png}
+		\caption{Stage 4: score distribution (lower = better).}
+	\end{figure}
+	
+	\begin{figure}[p]\centering
+		\includegraphics[width=0.80\linewidth]{omega_hist.png}
+		\caption{Stage 4: $\omega^\ast$ distribution in the scored candidate set.}
+	\end{figure}
+	
+	\begin{figure}[p]\centering
+		\includegraphics[width=0.80\linewidth]{score_hopf_boundary_phi2.png}
+		\caption{Stage 4: Hopf boundary locations ($r_F^{root}$ vs $\phi_2$), colored by score deciles (faceted).}
+	\end{figure}
+	
+	\FloatBarrier
+	\clearpage
+	
+	\subsubsection{Stage 4 shortlist tables (\texttt{\textbackslash input} with underscore-safe catcode)}
+	\begingroup
+	\catcode`\_=12
+	\input{stage4_scoring/shortlist_top20.tex}
+	\endgroup
+	
+	\clearpage
+	
+	\begingroup
+	\catcode`\_=12
+	\input{stage4_scoring/shortlist_top20_GATED.tex}
+	\endgroup
+	
+	\FloatBarrier
+	
+	% ============================================================
+	% Stage 5 section left optional by design (requires simulate_model)
+	% ============================================================
+	
+\end{document}

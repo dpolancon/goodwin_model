@@ -1,0 +1,6 @@
+plane,feasible_share,hopf_band_share,sign_change
+"(phi1, lambda)",0.925,0.554054054054054,TRUE
+"(i, lambda)",0.88015625,0.567548375643529,TRUE
+"(r0, lambda)",0.577989130434783,0.59332393041843,TRUE
+"(phi1, i)",0.45,1,TRUE
+"(phi0, phi1)",1,1,FALSE

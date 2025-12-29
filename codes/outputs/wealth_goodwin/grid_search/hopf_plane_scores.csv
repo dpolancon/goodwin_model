@@ -1,0 +1,6 @@
+"n_ok","n_feasible","feasible_share","hopf_band_share","sign_change","p1","p2"
+4960,2232,0.45,1,TRUE,"phi1","i"
+3680,2127,0.577989130434783,0.59332393041843,TRUE,"r0","lambda"
+6400,5633,0.88015625,0.567548375643529,TRUE,"i","lambda"
+4960,4588,0.925,0.554054054054054,TRUE,"phi1","lambda"
+4760,4760,1,1,FALSE,"phi0","phi1"

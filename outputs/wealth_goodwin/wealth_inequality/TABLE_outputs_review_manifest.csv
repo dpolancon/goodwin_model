@@ -1,0 +1,19 @@
+file,exists,reviewed,status,purpose
+hopf_plane_scores.csv,TRUE,FALSE,Ready to review,Raw plane ranking metrics
+TABLE_plane_ranking_tidy.csv,TRUE,FALSE,Ready to review,Tidy plane ranking table
+PLOT_plane_selection_scatter.png,TRUE,FALSE,Ready to review,Plane selection scatter plot
+hopf_plane_phi1_lambda.csv,TRUE,FALSE,Ready to review,"Plane grid data: (phi1, lambda)"
+hopf_plane_r0_lambda.csv,TRUE,FALSE,Ready to review,"Plane grid data: (r0, lambda)"
+hopf_plane_phi1_i.csv,TRUE,FALSE,Ready to review,"Plane grid data: (phi1, i)"
+FIG_A_hopf_plane_signH_phi1_lambda.png,TRUE,FALSE,Ready to review,Hopf map A
+FIG_B_hopf_plane_signH_r0_lambda.png,TRUE,FALSE,Ready to review,Hopf map B
+FIG_C_hopf_plane_signH_phi1_i.png,TRUE,FALSE,Ready to review,Hopf map C
+TABLE_plane_H_audit.csv,TRUE,FALSE,Ready to review,Plane H distribution audit
+PLOT_plane_H_quantiles.png,TRUE,FALSE,Ready to review,Plane H quantiles plot
+TABLE_scenarios_tail_diagnostics.csv,TRUE,FALSE,Ready to review,Tail-window diagnostics per scenario
+TABLE_scenarios_tidy.csv,TRUE,FALSE,Ready to review,Scenario tidy table
+PLOT_scenarios_amplitudes_vs_lambdaRel.png,TRUE,FALSE,Ready to review,Amplitudes vs lambda_rel
+PLOT_scenarios_period_vs_lambdaRel.png,TRUE,FALSE,Ready to review,Period vs lambda_rel
+scenario_sim_*.csv,FALSE,FALSE,Missing,Scenario simulation outputs
+scenario_timeseries_*.png,FALSE,FALSE,Missing,Scenario time-series panels
+phase_end_*.png,FALSE,FALSE,Missing,Phase plots with start/end labels

@@ -1,0 +1,10 @@
+kappa_max,reason,n
+0.35,d_star_negative,188
+0.45,omega_outside_target_band,164
+0.35,omega_outside_target_band,130
+0.25,kappa_star_out_of_bounds,116
+0.45,d_star_negative,80
+0.25,d_star_negative,76
+0.25,omega_outside_target_band,50
+0.45,ok,16
+0.35,kappa_star_out_of_bounds,4

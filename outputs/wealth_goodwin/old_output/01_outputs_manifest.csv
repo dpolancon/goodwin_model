@@ -1,0 +1,14 @@
+file,exists,reviewed,status,purpose
+hopf_plane_scores.csv,TRUE,FALSE,Ready to review,Raw plane ranking metrics
+TABLE_plane_ranking_tidy.csv,TRUE,FALSE,Ready to review,Tidy plane ranking table
+PLOT_plane_selection_scatter.png,TRUE,FALSE,Ready to review,Plane selection scatter plot
+FIG_A_hopf_plane_signH_phi1_lambda.png,TRUE,TRUE,Reviewed,"Hopf map A (phi1, lambda)"
+FIG_B_hopf_plane_signH_phi1_i.png,TRUE,TRUE,Reviewed,"Hopf map B (phi1, i)"
+TABLE_scenarios_tail_diagnostics.csv,TRUE,FALSE,Ready to review,Tail-window diagnostics per scenario
+TABLE_scenarios_tidy.csv,TRUE,TRUE,Reviewed,"Scenario table (lambda_rel, cycle_flag)"
+PLOT_scenarios_amplitudes_vs_lambdaRel.png,TRUE,FALSE,Ready to review,Amplitudes vs lambda_rel
+PLOT_scenarios_period_vs_lambdaRel.png,TRUE,FALSE,Ready to review,Period vs lambda_rel
+scenario_phase_end_*,TRUE,FALSE,Ready to review,Phase plots with start/end labels
+TABLE_scenarios_audit_reclassified.csv,TRUE,TRUE,Reviewed,Scenario table (reclassified regime2)
+TABLE_plane_H_audit.csv,TRUE,FALSE,Ready to review,Plane-level H audit (quantiles/shares)
+PLOT_plane_H_quantiles.png,FALSE,FALSE,Missing,Plot of H quantiles by plane
