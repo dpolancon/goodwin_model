@@ -1,0 +1,27 @@
+STAGE 5 ANALYSIS REPORT
+======================
+grid_base: outputs/wealth_goodwin/grid_search
+analysis_base: outputs/wealth_goodwin/analysis
+
+FILES PRESENT:
+stage5_candidate_pool: OK | rows=40 | file=outputs/wealth_goodwin/grid_search/stage5/stage5A_hopf_cert/stage5_candidate_pool.csv
+stage5A_hopf_certified: OK | rows=40 | file=outputs/wealth_goodwin/grid_search/stage5/stage5A_hopf_cert/stage5A_hopf_certified.csv
+stage5B_cycle_metrics: OK | rows=40 | file=outputs/wealth_goodwin/grid_search/stage5/stage5B_sim/stage5B_cycle_metrics.csv
+stage5C_robustness_summary: OK | rows=0 | file=outputs/wealth_goodwin/grid_search/stage5/stage5C_robust/robustness_summary.csv
+stage5D_final_ranked: MISSING | rows=0 | file=
+stage5_top20: MISSING | rows=0 | file=
+
+COUNTS:
+n_candidates: 40
+n_sim_ok: 0
+n_bounded_above: 0
+n_cycle_above: 0
+n_cycle_flip (below no, above yes): 0
+n_robust_nonzero: 0
+
+WRITTEN OUTPUTS:
+outputs/wealth_goodwin/analysis/stage5_decision_table.csv
+outputs/wealth_goodwin/analysis/stage5_top20_decision.csv
+outputs/wealth_goodwin/analysis/stage5_counts.csv
+outputs/wealth_goodwin/analysis/stage5_files_present.csv
+outputs/wealth_goodwin/analysis/manifest_analysis.csv

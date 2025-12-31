@@ -1,0 +1,5 @@
+object,file,n_rows
+candidate_pool,outputs/wealth_goodwin/grid_search/stage5/stage5A_hopf_cert/stage5_candidate_pool.csv,40
+cycle_metrics,outputs/wealth_goodwin/grid_search/stage5/stage5B_sim/stage5B_cycle_metrics.csv,40
+robustness_summary,outputs/wealth_goodwin/grid_search/stage5/stage5C_robust/robustness_summary.csv,0
+final_ranked,,0

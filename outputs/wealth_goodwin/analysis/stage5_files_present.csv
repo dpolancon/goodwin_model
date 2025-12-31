@@ -1,0 +1,7 @@
+object,file,exists,n_rows
+stage5_candidate_pool,outputs/wealth_goodwin/grid_search/stage5/stage5A_hopf_cert/stage5_candidate_pool.csv,TRUE,40
+stage5A_hopf_certified,outputs/wealth_goodwin/grid_search/stage5/stage5A_hopf_cert/stage5A_hopf_certified.csv,TRUE,40
+stage5B_cycle_metrics,outputs/wealth_goodwin/grid_search/stage5/stage5B_sim/stage5B_cycle_metrics.csv,TRUE,40
+stage5C_robustness_summary,outputs/wealth_goodwin/grid_search/stage5/stage5C_robust/robustness_summary.csv,TRUE,0
+stage5D_final_ranked,NA,FALSE,0
+stage5_top20,NA,FALSE,0

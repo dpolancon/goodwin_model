@@ -1,0 +1,5 @@
+path,rel_path,bytes,ext,mtime
+outputs/wealth_goodwin/analysis/stage5_counts.csv,stage5_counts.csv,95,csv,2025-12-31T01:53:57Z
+outputs/wealth_goodwin/analysis/stage5_decision_table.csv,stage5_decision_table.csv,27525,csv,2025-12-31T01:53:57Z
+outputs/wealth_goodwin/analysis/stage5_files_present.csv,stage5_files_present.csv,540,csv,2025-12-31T01:53:57Z
+outputs/wealth_goodwin/analysis/stage5_top20_decision.csv,stage5_top20_decision.csv,14170,csv,2025-12-31T01:53:57Z
